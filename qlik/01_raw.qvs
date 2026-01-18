@@ -1,0 +1,54 @@
+// RAW LAYER
+// Purpose: source-aligned ingestion with minimal transformation.
+
+SET ErrorMode=1;
+SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
+SET DateFormat='YYYY-MM-DD';
+
+LET vRoot = '$(Include=../config/environment.qvs)';
+
+// If environment.qvs is unavailable, replace the paths below with your local data/QVD folders.
+LET vSourcePath = 'data/sample/';
+LET vQvdPath = 'qvd/raw/';
+
+Customers_Raw:
+LOAD
+    CustomerID,
+    CustomerName,
+    Region,
+    Country,
+    Segment
+FROM [$(vSourcePath)customers.csv]
+(txt, codepage is 65001, embedded labels, delimiter is ',', msq);
+
+STORE Customers_Raw INTO [$(vQvdPath)Customers.qvd] (qvd);
+DROP TABLE Customers_Raw;
+
+Products_Raw:
+LOAD
+    ProductID,
+    ProductName,
+    Category,
+    Subcategory,
+    UnitPrice
+FROM [$(vSourcePath)products.csv]
+(txt, codepage is 65001, embedded labels, delimiter is ',', msq);
+
+STORE Products_Raw INTO [$(vQvdPath)Products.qvd] (qvd);
+DROP TABLE Products_Raw;
+
+Orders_Raw:
+LOAD
+    OrderID,
+    OrderDate,
+    CustomerID,
+    ProductID,
+    Quantity,
+    Discount,
+    SalesAmount,
+    ModifiedDate
+FROM [$(vSourcePath)orders.csv]
+(txt, codepage is 65001, embedded labels, delimiter is ',', msq);
+
+STORE Orders_Raw INTO [$(vQvdPath)Orders.qvd] (qvd);
+DROP TABLE Orders_Raw;

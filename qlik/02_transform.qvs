@@ -1,0 +1,54 @@
+// TRANSFORM LAYER
+// Cleanses and standardises raw QVDs before application consumption.
+
+$(Must_Include=../config/environment.qvs);
+
+Customers_Transform:
+LOAD
+    Trim(CustomerID) as CustomerID,
+    Proper(CustomerName) as CustomerName,
+    Upper(Trim(Region)) as Region,
+    Upper(Trim(Country)) as Country,
+    Proper(Trim(Segment)) as Segment
+FROM [$(vRawQvdPath)Customers.qvd] (qvd)
+WHERE Len(Trim(CustomerID)) > 0;
+
+Products_Transform:
+LOAD
+    Trim(ProductID) as ProductID,
+    Proper(ProductName) as ProductName,
+    Proper(Trim(Category)) as Category,
+    Proper(Trim(Subcategory)) as Subcategory,
+    Num(UnitPrice) as UnitPrice
+FROM [$(vRawQvdPath)Products.qvd] (qvd)
+WHERE Len(Trim(ProductID)) > 0;
+
+Orders_Transform:
+LOAD
+    Trim(OrderID) as OrderID,
+    Date(Date#(OrderDate, 'YYYY-MM-DD')) as OrderDate,
+    Trim(CustomerID) as CustomerID,
+    Trim(ProductID) as ProductID,
+    Num(Quantity) as Quantity,
+    Num(Discount) as Discount,
+    Num(SalesAmount) as SalesAmount,
+    Timestamp(Timestamp#(ModifiedDate, 'YYYY-MM-DD')) as ModifiedTimestamp,
+    If(Quantity <= 0 or SalesAmount < 0, 1, 0) as IsInvalidOrder
+FROM [$(vRawQvdPath)Orders.qvd] (qvd)
+WHERE Len(Trim(OrderID)) > 0;
+
+// Keep only valid transactions in the reusable transform QVD.
+Orders_Valid:
+NoConcatenate
+LOAD *
+RESIDENT Orders_Transform
+WHERE IsInvalidOrder = 0;
+
+STORE Customers_Transform INTO [$(vTransformQvdPath)Customers.qvd] (qvd);
+STORE Products_Transform INTO [$(vTransformQvdPath)Products.qvd] (qvd);
+STORE Orders_Valid INTO [$(vTransformQvdPath)Orders.qvd] (qvd);
+
+DROP TABLE Customers_Transform;
+DROP TABLE Products_Transform;
+DROP TABLE Orders_Transform;
+DROP TABLE Orders_Valid;

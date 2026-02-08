@@ -1,0 +1,46 @@
+// DATA QUALITY LAYER
+// Run after Raw ingestion and before publishing semantic QVDs.
+
+$(Must_Include=../config/environment.qvs);
+
+DQ_Orders:
+LOAD
+    Count(OrderID) as TotalRows,
+    Count(DISTINCT OrderID) as DistinctOrderIDs,
+    Sum(If(IsNull(OrderID) or Len(Trim(OrderID)) = 0, 1, 0)) as NullOrderIDs,
+    Sum(If(IsNull(CustomerID) or Len(Trim(CustomerID)) = 0, 1, 0)) as MissingCustomerIDs,
+    Sum(If(IsNull(ProductID) or Len(Trim(ProductID)) = 0, 1, 0)) as MissingProductIDs,
+    Sum(If(IsNull(OrderDate), 1, 0)) as InvalidDates,
+    Sum(If(Quantity <= 0, 1, 0)) as InvalidQuantities,
+    Sum(If(SalesAmount < 0, 1, 0)) as InvalidSalesAmounts
+FROM [$(vTransformQvdPath)Orders.qvd] (qvd);
+
+DQ_Customers:
+LOAD
+    Count(CustomerID) as CustomerRows,
+    Count(DISTINCT CustomerID) as DistinctCustomerIDs,
+    Sum(If(IsNull(CustomerID) or Len(Trim(CustomerID)) = 0, 1, 0)) as NullCustomerIDs
+FROM [$(vTransformQvdPath)Customers.qvd] (qvd);
+
+DQ_Products:
+LOAD
+    Count(ProductID) as ProductRows,
+    Count(DISTINCT ProductID) as DistinctProductIDs,
+    Sum(If(IsNull(ProductID) or Len(Trim(ProductID)) = 0, 1, 0)) as NullProductIDs,
+    Sum(If(UnitPrice < 0, 1, 0)) as InvalidPrices
+FROM [$(vTransformQvdPath)Products.qvd] (qvd);
+
+// Fail-fast gate. In production, route these metrics to an audit QVD/log store.
+LET vDQOrders = Peek('TotalRows', 0, 'DQ_Orders');
+LET vDQDistinctOrders = Peek('DistinctOrderIDs', 0, 'DQ_Orders');
+LET vDQNullOrderIDs = Peek('NullOrderIDs', 0, 'DQ_Orders');
+
+IF $(vDQOrders) <> $(vDQDistinctOrders) OR $(vDQNullOrderIDs) > 0 THEN
+    TRACE *** DATA QUALITY FAILURE: Orders key integrity check failed ***;
+    SET ErrorMode=1;
+    EXIT SCRIPT;
+ENDIF;
+
+STORE DQ_Orders INTO [$(vTransformQvdPath)DQ_Orders.qvd] (qvd);
+STORE DQ_Customers INTO [$(vTransformQvdPath)DQ_Customers.qvd] (qvd);
+STORE DQ_Products INTO [$(vTransformQvdPath)DQ_Products.qvd] (qvd);

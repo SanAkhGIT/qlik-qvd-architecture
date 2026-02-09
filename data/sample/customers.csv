@@ -1,0 +1,9 @@
+CustomerID,CustomerName,Region,Country,Segment
+C0001,Customer 0001,West,India,Consumer
+C0002,Customer 0002,North,India,Corporate
+C0003,Customer 0003,South,India,Consumer
+C0004,Customer 0004,East,India,Small Business
+C0005,Customer 0005,West,India,Corporate
+C0006,Customer 0006,North,India,Consumer
+C0007,Customer 0007,South,India,Corporate
+C0008,Customer 0008,East,India,Consumer

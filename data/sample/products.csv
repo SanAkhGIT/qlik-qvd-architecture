@@ -1,0 +1,9 @@
+ProductID,ProductName,Category,Subcategory,UnitPrice
+P001,Laptop Pro 14,Computers,Laptops,95000
+P002,Laptop Air 13,Computers,Laptops,72000
+P003,Office Monitor 27,Computers,Monitors,24000
+P004,Wireless Keyboard,Accessories,Keyboards,3500
+P005,Wireless Mouse,Accessories,Mice,1800
+P006,USB-C Dock,Accessories,Docks,8500
+P007,Noise Cancelling Headset,Audio,Headsets,12500
+P008,Webcam HD,Audio,Webcams,4500

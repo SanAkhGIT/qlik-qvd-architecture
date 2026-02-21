@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="650" viewBox="0 0 1100 650">
+<rect width="1100" height="650" fill="white"/>
+<text x="550" y="45" text-anchor="middle" font-family="Arial" font-size="28" font-weight="bold">Qlik Three-Layer QVD Architecture</text>
+<g font-family="Arial" text-anchor="middle">
+<rect x="390" y="75" width="320" height="75" rx="12" fill="#eef2f7" stroke="#333"/>
+<text x="550" y="108" font-size="20" font-weight="bold">SOURCE SYSTEMS</text><text x="550" y="132" font-size="14">Customers • Products • Orders</text>
+<path d="M550 150 V190" stroke="#333" stroke-width="3" marker-end="url(#a)"/>
+<rect x="330" y="190" width="440" height="95" rx="12" fill="#f7f7f7" stroke="#333"/>
+<text x="550" y="225" font-size="22" font-weight="bold">RAW LAYER</text><text x="550" y="250" font-size="15">Source-aligned QVDs • minimal transformation</text><text x="550" y="271" font-size="14">Ingestion • basic validation</text>
+<path d="M550 285 V325" stroke="#333" stroke-width="3" marker-end="url(#a)"/>
+<rect x="300" y="325" width="500" height="105" rx="12" fill="#f7f7f7" stroke="#333"/>
+<text x="550" y="362" font-size="22" font-weight="bold">TRANSFORM LAYER</text><text x="550" y="387" font-size="15">Cleansing • standardisation • mappings</text><text x="550" y="410" font-size="14">Incremental processing • data-quality gates</text>
+<path d="M550 430 V470" stroke="#333" stroke-width="3" marker-end="url(#a)"/>
+<rect x="270" y="470" width="560" height="105" rx="12" fill="#f7f7f7" stroke="#333"/>
+<text x="550" y="507" font-size="22" font-weight="bold">SEMANTIC LAYER</text><text x="550" y="532" font-size="15">Fact + conformed dimensions + canonical calendar</text><text x="550" y="555" font-size="14">Application-ready QVDs • KPI-ready data</text>
+<path d="M830 522 H950" stroke="#333" stroke-width="3" marker-end="url(#a)"/><text x="1010" y="516" font-size="17" font-weight="bold">QLIK</text><text x="1010" y="540" font-size="17" font-weight="bold">SENSE</text>
+</g><defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#333"/></marker></defs>
+</svg>

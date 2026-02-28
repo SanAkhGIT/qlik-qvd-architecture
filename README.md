@@ -1,273 +1,171 @@
 # Qlik QVD Architecture Lab
 
-A production style demonstration of a **three layer QVD architecture** using synthetic sales data.
+A production-style portfolio demonstration of a **three-layer QVD architecture** using synthetic sales data.
 
-The project demonstrates how source data can be separated into **Raw, Transform and Semantic layers** to improve maintainability, reload performance, data quality and application scalability.
+The project separates source ingestion, reusable transformation and application-ready semantic data into Raw, Transform and Semantic layers.
 
-> This is a portfolio project using synthetic data. No proprietary client data, scripts or internal architecture are included.
-
----
+> Portfolio project using synthetic data. No proprietary client data, scripts or internal architecture are included.
 
 ## Architecture
+
+![QVD Architecture](architecture/architecture.svg)
 
 ```text
 Source Data
     │
-    ├── Customers
-    ├── Products
-    └── Orders
-          │
-          ▼
-┌────────────────────────┐
-│       RAW LAYER        │
-│                        │
-│ Source aligned QVDs    │
-│ Minimal transformation │
-└──────────┬─────────────┘
-           │
-           ▼
-┌─────────────────────┐
-│   TRANSFORM LAYER   │
-│                     │
-│ Cleansing           │
-│ Mapping             │
-│ Standardisation     │
-│ Incremental logic   │
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│   SEMANTIC LAYER    │
-│                     │
-│ Business ready      │
-│ data model          │
-│ Optimised fields    │
-│ KPI ready datasets  │
-└──────────┬──────────┘
-           │
-           ▼
-      Qlik Sense
-      Application
+    ▼
+ RAW QVDs ──► TRANSFORM QVDs ──► SEMANTIC QVDs ──► Qlik Sense
+              │                    │
+              ├─ cleansing         ├─ fact + dimensions
+              ├─ validation        ├─ canonical calendar
+              └─ incremental load  └─ KPI-ready data
 ```
 
----
+## What this demonstrates
 
-## Project Objectives
-
-The architecture is designed to demonstrate:
-
-* Three layer QVD architecture
-* Incremental data loading
-* Separation of ingestion and transformation logic
-* Reusable QVD datasets
-* Data cleansing and standardisation
-* Mapping tables
-* Optimised Qlik data models
-* Reduction of unnecessary source queries
-* Data quality validation
-* Maintainable reload processes
-* Separation between technical and business logic
-
----
-
-## Data Model
-
-The project uses a simple sales analytics scenario.
-
-### Fact
-
-**Orders**
-
-Contains transactional sales information including:
-
-* Order ID
-* Order date
-* Customer ID
-* Product ID
-* Quantity
-* Discount
-* Sales amount
-
-### Dimensions
-
-**Customers**
-
-* Customer ID
-* Customer name
-* Region
-* Country
-* Customer segment
-
-**Products**
-
-* Product ID
-* Product name
-* Category
-* Subcategory
-* Unit price
-
-The semantic layer is designed around a simple fact and dimension structure while avoiding unnecessary joins and synthetic keys.
-
----
-
-## Layer Responsibilities
-
-### Raw Layer
-
-The raw layer maintains source aligned datasets with minimal transformation.
-
-Responsibilities:
-
-* Source ingestion
-* Basic field selection
-* QVD creation
-* Source level validation
-* Preservation of source structure
-
-### Transform Layer
-
-The transform layer contains reusable business and technical transformations.
-
-Responsibilities:
-
-* Data cleansing
-* Field standardisation
-* Mapping
-* Derived fields
-* Duplicate handling
-* Incremental processing
-* Data quality checks
-
-### Semantic Layer
-
-The semantic layer provides application ready datasets.
-
-Responsibilities:
-
-* Business friendly field names
-* Optimised data model
-* KPI calculations
-* Dimension enrichment
-* Application specific requirements
-
----
-
-## Incremental Loading
-
-The project demonstrates an incremental loading pattern where only new or changed records are processed instead of repeatedly loading the complete source dataset.
-
-The general pattern is:
-
-```text
-Existing QVD
-     │
-     ├── Read latest processed timestamp
-     │
-     ▼
-Source
-     │
-     ├── Load new records
-     │
-     ▼
-Transform
-     │
-     ▼
-Concatenate with existing data
-     │
-     ▼
-Store updated QVD
-```
-
-This approach can reduce unnecessary source reads and improve reload efficiency as data volumes increase.
-
----
-
-## Performance Considerations
-
-The project applies several Qlik optimisation principles:
-
-* Load only required fields
-* Keep transformations separated from the source layer
-* Use QVDs as reusable intermediate storage
-* Apply incremental loading where appropriate
-* Avoid unnecessary joins
-* Minimise repeated source extraction
-* Reduce synthetic key creation
-* Keep business logic in the appropriate layer
-
-Performance should be evaluated based on reload duration, data volume, memory consumption and application responsiveness.
-
----
-
-## Data Quality
-
-The project includes validation concepts for:
-
-* Null key values
-* Duplicate transaction identifiers
-* Invalid dates
-* Missing dimension references
-* Negative or invalid quantities
-* Unmapped values
-* Unexpected record counts
-
-The objective is to identify data issues before they reach the semantic layer or reporting application.
-
----
+- Three-layer QVD architecture
+- Source-aligned Raw ingestion
+- Reusable Transform QVDs
+- Semantic star-style model
+- Incremental loading using `ModifiedTimestamp`
+- Data-quality gates and audit metrics
+- Conformed dimensions and canonical calendar
+- Avoidance of unnecessary joins and synthetic keys
+- Separation of technical and business logic
+- Git-based source control for Qlik script and documentation
 
 ## Repository Structure
 
 ```text
 qlik-qvd-architecture/
-│
 ├── architecture/
 │   └── architecture.svg
-│
+├── config/
+│   └── environment.qvs
 ├── data/
 │   └── sample/
-│
+│       ├── customers.csv
+│       ├── products.csv
+│       └── orders.csv
 ├── docs/
 │   ├── data-modelling.md
+│   ├── data-quality.md
 │   ├── incremental-loading.md
 │   └── performance.md
-│
 ├── python/
 │   └── generate_data.py
-│
 ├── qlik/
 │   ├── 01_raw.qvs
 │   ├── 02_transform.qvs
-│   └── 03_semantic.qvs
-│
+│   ├── 03_semantic.qvs
+│   ├── 04_incremental_orders.qvs
+│   └── 05_data_quality.qvs
 └── README.md
 ```
 
----
+## Data Model
+
+### Fact
+
+**FactOrders** — one row per `OrderID`.
+
+Fields include order date, customer, product, quantity, discount, sales amount and modification timestamp.
+
+### Dimensions
+
+**Customers** — customer, region, country and segment.
+
+**Products** — product, category, subcategory and unit price.
+
+**CanonicalCalendar** — reusable date attributes including year, month, month-year, week and quarter.
+
+The model uses explicit keys and avoids unnecessary joins.
+
+## Layer Responsibilities
+
+### 1. Raw
+
+`qlik/01_raw.qvs` ingests source CSVs with minimal transformation and persists source-aligned QVDs.
+
+### 2. Transform
+
+`qlik/02_transform.qvs` cleans and standardises fields, rejects invalid orders and persists reusable transform QVDs.
+
+### 3. Semantic
+
+`qlik/03_semantic.qvs` builds the application-ready fact/dimension model and canonical calendar.
+
+### Supporting processes
+
+`qlik/04_incremental_orders.qvs` demonstrates timestamp-based incremental loading.
+
+`qlik/05_data_quality.qvs` validates key integrity and publishes quality metrics.
+
+## Incremental Loading
+
+The incremental pattern reads the latest persisted `ModifiedTimestamp`, extracts newer source records, combines them with existing data and deduplicates by `OrderID`.
+
+This is intentionally a demonstration pattern. Production CDC must also address late-arriving data, deletes, source corrections, idempotency, recovery and auditability.
+
+See [`docs/incremental-loading.md`](docs/incremental-loading.md).
+
+## Data Quality
+
+The quality layer checks null keys, duplicate order IDs, invalid dates, missing references, invalid quantities and negative sales/prices.
+
+The order-key integrity check is configured as a fail-fast gate. In production, quality thresholds should be agreed with business owners and operational alerts should be added.
+
+See [`docs/data-quality.md`](docs/data-quality.md).
+
+## Performance Principles
+
+- Extract source data once into Raw QVDs.
+- Reuse QVDs downstream instead of repeatedly hitting the source.
+- Load only required fields.
+- Apply incremental extraction for suitable high-volume sources.
+- Keep the semantic model narrow and at a known grain.
+- Avoid unnecessary joins, `DISTINCT` operations and synthetic keys.
+- Measure reload duration, RAM, QVD size and application response time instead of inventing benchmarks.
+
+See [`docs/performance.md`](docs/performance.md).
+
+## Running the Data Generator
+
+From the repository root:
+
+```bash
+python python/generate_data.py
+```
+
+The generator creates deterministic synthetic customers, products and orders under `data/sample/`.
+
+## Running in Qlik Sense
+
+1. Create a Qlik Sense data connection named `QlikQvdArchitecture` pointing at the repository root or an exported project directory.
+2. Review `config/environment.qvs` and adjust the connection/path variables for your environment.
+3. Run the Raw script to create Raw QVDs.
+4. Run the Transform script to create Transform QVDs.
+5. Run the Data Quality script and resolve any failed checks.
+6. Run the Semantic script to publish application-ready QVDs.
+7. Run the incremental script on subsequent reloads when the source contains new/changed records.
+
+The exact Qlik connection setup is environment-specific; the repository deliberately does not contain credentials or server-specific configuration.
 
 ## Technology
 
-* Qlik Sense
-* Qlik Script
-* QVD
-* Python
-* CSV
-* SQL concepts
-* Git
-
----
+- Qlik Sense
+- Qlik Script
+- QVD
+- Python
+- CSV
+- SQL/data-engineering concepts
+- Git/GitHub
 
 ## Disclaimer
 
-This repository is an independent portfolio project created for demonstrating Qlik development and data engineering concepts.
-
-All datasets are synthetic or publicly generated. No confidential information, proprietary code, customer data or internal company assets are included.
-
----
+This is an independent portfolio project. All data is synthetic. No confidential information, proprietary code, customer data or internal company assets are included.
 
 ## Author
 
-**Sanket Akhare**
-
+**Sanket Akhare**  
 Qlik Developer | BI Engineer | Data Analytics
-
-[LinkedIn](https://www.linkedin.com/in/sanketakhare)

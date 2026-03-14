@@ -1,0 +1,9 @@
+# Generated QVD outputs
+qvd/**/*.qvd
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local Qlik environment overrides
+config/environment.local.qvs

@@ -1,0 +1,7 @@
+// Rename/copy to environment.local.qvs for local use.
+// Do not commit credentials or environment-specific secrets.
+
+SET vSourcePath = 'lib://QlikQvdArchitecture/data/sample/';
+SET vRawQvdPath = 'lib://QlikQvdArchitecture/qvd/raw/';
+SET vTransformQvdPath = 'lib://QlikQvdArchitecture/qvd/transform/';
+SET vSemanticQvdPath = 'lib://QlikQvdArchitecture/qvd/semantic/';

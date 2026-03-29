@@ -1,7 +1,12 @@
-// Copy/adjust these variables for your Qlik Sense environment.
-// Keep this file outside source control if your environment contains secrets.
+// Qlik Sense environment configuration
+// Create a folder data connection named QlikQVDArchitecture that points to the
+// cloned repository root (or adjust these paths for your environment).
+// Keep secrets and environment-specific overrides out of source control.
 
-SET vSourcePath = 'data/sample/';
-SET vRawQvdPath = 'qvd/raw/';
-SET vTransformQvdPath = 'qvd/transform/';
-SET vSemanticQvdPath = 'qvd/semantic/';
+SET vSourcePath = 'lib://QlikQVDArchitecture/data/sample/';
+SET vRawQvdPath = 'lib://QlikQVDArchitecture/qvd/raw/';
+SET vTransformQvdPath = 'lib://QlikQVDArchitecture/qvd/transform/';
+SET vSemanticQvdPath = 'lib://QlikQVDArchitecture/qvd/semantic/';
+SET vAuditQvdPath = 'lib://QlikQVDArchitecture/qvd/audit/';
+SET vDQFailOnError = 1;
+SET vIncrementalLookbackDays = 1;

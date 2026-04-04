@@ -1,15 +1,11 @@
 // RAW LAYER
-// Purpose: source-aligned ingestion with minimal transformation.
+// Source-aligned ingestion with minimal transformation.
 
 SET ErrorMode=1;
-SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
 SET DateFormat='YYYY-MM-DD';
+SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
 
-LET vRoot = '$(Include=../config/environment.qvs)';
-
-// If environment.qvs is unavailable, replace the paths below with your local data/QVD folders.
-LET vSourcePath = 'data/sample/';
-LET vQvdPath = 'qvd/raw/';
+$(Must_Include=../config/environment.qvs);
 
 Customers_Raw:
 LOAD
@@ -20,8 +16,7 @@ LOAD
     Segment
 FROM [$(vSourcePath)customers.csv]
 (txt, codepage is 65001, embedded labels, delimiter is ',', msq);
-
-STORE Customers_Raw INTO [$(vQvdPath)Customers.qvd] (qvd);
+STORE Customers_Raw INTO [$(vRawQvdPath)Customers.qvd] (qvd);
 DROP TABLE Customers_Raw;
 
 Products_Raw:
@@ -33,8 +28,7 @@ LOAD
     UnitPrice
 FROM [$(vSourcePath)products.csv]
 (txt, codepage is 65001, embedded labels, delimiter is ',', msq);
-
-STORE Products_Raw INTO [$(vQvdPath)Products.qvd] (qvd);
+STORE Products_Raw INTO [$(vRawQvdPath)Products.qvd] (qvd);
 DROP TABLE Products_Raw;
 
 Orders_Raw:
@@ -49,6 +43,7 @@ LOAD
     ModifiedDate
 FROM [$(vSourcePath)orders.csv]
 (txt, codepage is 65001, embedded labels, delimiter is ',', msq);
-
-STORE Orders_Raw INTO [$(vQvdPath)Orders.qvd] (qvd);
+STORE Orders_Raw INTO [$(vRawQvdPath)Orders.qvd] (qvd);
 DROP TABLE Orders_Raw;
+
+TRACE RAW LAYER COMPLETE;

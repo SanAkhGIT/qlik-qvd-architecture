@@ -1,24 +1,28 @@
 // TRANSFORM LAYER
-// Cleanses and standardises raw QVDs before application consumption.
+// Cleanses, standardises and validates reusable QVD datasets.
+
+SET ErrorMode=1;
+SET DateFormat='YYYY-MM-DD';
+SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
 
 $(Must_Include=../config/environment.qvs);
 
 Customers_Transform:
 LOAD
     Trim(CustomerID) as CustomerID,
-    Proper(CustomerName) as CustomerName,
+    Capitalize(Trim(CustomerName)) as CustomerName,
     Upper(Trim(Region)) as Region,
     Upper(Trim(Country)) as Country,
-    Proper(Trim(Segment)) as Segment
+    Capitalize(Trim(Segment)) as Segment
 FROM [$(vRawQvdPath)Customers.qvd] (qvd)
 WHERE Len(Trim(CustomerID)) > 0;
 
 Products_Transform:
 LOAD
     Trim(ProductID) as ProductID,
-    Proper(ProductName) as ProductName,
-    Proper(Trim(Category)) as Category,
-    Proper(Trim(Subcategory)) as Subcategory,
+    Capitalize(Trim(ProductName)) as ProductName,
+    Capitalize(Trim(Category)) as Category,
+    Capitalize(Trim(Subcategory)) as Subcategory,
     Num(UnitPrice) as UnitPrice
 FROM [$(vRawQvdPath)Products.qvd] (qvd)
 WHERE Len(Trim(ProductID)) > 0;
@@ -26,23 +30,33 @@ WHERE Len(Trim(ProductID)) > 0;
 Orders_Transform:
 LOAD
     Trim(OrderID) as OrderID,
-    Date(Date#(OrderDate, 'YYYY-MM-DD')) as OrderDate,
+    Date(Date#(Trim(OrderDate), 'YYYY-MM-DD')) as OrderDate,
     Trim(CustomerID) as CustomerID,
     Trim(ProductID) as ProductID,
     Num(Quantity) as Quantity,
     Num(Discount) as Discount,
     Num(SalesAmount) as SalesAmount,
-    Timestamp(Timestamp#(ModifiedDate, 'YYYY-MM-DD')) as ModifiedTimestamp,
-    If(Quantity <= 0 or SalesAmount < 0, 1, 0) as IsInvalidOrder
+    Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp,
+    If(Len(Trim(CustomerID)) = 0 or Len(Trim(ProductID)) = 0
+        or IsNull(OrderDate) or Quantity <= 0 or SalesAmount < 0, 1, 0) as IsInvalidOrder
 FROM [$(vRawQvdPath)Orders.qvd] (qvd)
 WHERE Len(Trim(OrderID)) > 0;
 
-// Keep only valid transactions in the reusable transform QVD.
+// One reusable clean fact QVD. Duplicates are removed deterministically by OrderID.
 Orders_Valid:
 NoConcatenate
-LOAD *
+LOAD
+    OrderID,
+    FirstSortedValue(OrderDate, -ModifiedTimestamp) as OrderDate,
+    FirstSortedValue(CustomerID, -ModifiedTimestamp) as CustomerID,
+    FirstSortedValue(ProductID, -ModifiedTimestamp) as ProductID,
+    FirstSortedValue(Quantity, -ModifiedTimestamp) as Quantity,
+    FirstSortedValue(Discount, -ModifiedTimestamp) as Discount,
+    FirstSortedValue(SalesAmount, -ModifiedTimestamp) as SalesAmount,
+    Max(ModifiedTimestamp) as ModifiedTimestamp
 RESIDENT Orders_Transform
-WHERE IsInvalidOrder = 0;
+WHERE IsInvalidOrder = 0
+GROUP BY OrderID;
 
 STORE Customers_Transform INTO [$(vTransformQvdPath)Customers.qvd] (qvd);
 STORE Products_Transform INTO [$(vTransformQvdPath)Products.qvd] (qvd);
@@ -52,3 +66,5 @@ DROP TABLE Customers_Transform;
 DROP TABLE Products_Transform;
 DROP TABLE Orders_Transform;
 DROP TABLE Orders_Valid;
+
+TRACE TRANSFORM LAYER COMPLETE;

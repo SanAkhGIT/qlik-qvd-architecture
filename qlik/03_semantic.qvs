@@ -1,5 +1,8 @@
 // SEMANTIC LAYER
-// Application-ready model. One fact table links to conformed dimensions.
+// Application-ready star model: one fact linked to conformed dimensions.
+
+SET ErrorMode=1;
+SET DateFormat='YYYY-MM-DD';
 
 $(Must_Include=../config/environment.qvs);
 
@@ -30,12 +33,13 @@ LOAD
     Quantity,
     Discount,
     SalesAmount,
-    SalesAmount / Quantity as NetUnitSales,
+    If(Quantity <> 0, SalesAmount / Quantity) as NetUnitSales,
     Year(OrderDate) as OrderYear,
-    Month(OrderDate) as OrderMonth
+    Month(OrderDate) as OrderMonth,
+    '$(vLoadTimestamp)' as DataLoadTimestamp
 FROM [$(vTransformQvdPath)Orders.qvd] (qvd);
 
-// Canonical calendar: a reusable conformed date dimension.
+// Canonical calendar. OrderDate is the intentional association key.
 TempMinMax:
 LOAD
     Min(OrderDate) as MinDate,
@@ -46,19 +50,32 @@ LET vMinDate = Num(Peek('MinDate', 0, 'TempMinMax'));
 LET vMaxDate = Num(Peek('MaxDate', 0, 'TempMinMax'));
 DROP TABLE TempMinMax;
 
-CanonicalCalendar:
-LOAD
-    Date($(vMinDate) + IterNo() - 1) as OrderDate,
-    Year($(vMinDate) + IterNo() - 1) as CalendarYear,
-    Month($(vMinDate) + IterNo() - 1) as CalendarMonth,
-    MonthName($(vMinDate) + IterNo() - 1) as CalendarMonthYear,
-    Week($(vMinDate) + IterNo() - 1) as CalendarWeek,
-    WeekDay($(vMinDate) + IterNo() - 1) as CalendarWeekDay,
-    QuarterName($(vMinDate) + IterNo() - 1) as CalendarQuarter
-AUTOGENERATE 1
-WHILE $(vMinDate) + IterNo() - 1 <= $(vMaxDate);
+IF $(vMinDate) <= $(vMaxDate) THEN
+    CanonicalCalendar:
+    LOAD
+        Date($(vMinDate) + IterNo() - 1) as OrderDate,
+        Year($(vMinDate) + IterNo() - 1) as CalendarYear,
+        Month($(vMinDate) + IterNo() - 1) as CalendarMonth,
+        MonthName($(vMinDate) + IterNo() - 1) as CalendarMonthYear,
+        Week($(vMinDate) + IterNo() - 1) as CalendarWeek,
+        WeekDay($(vMinDate) + IterNo() - 1) as CalendarWeekDay,
+        QuarterName($(vMinDate) + IterNo() - 1) as CalendarQuarter,
+        If(WeekDay($(vMinDate) + IterNo() - 1) < 5, 1, 0) as IsWeekday
+    AUTOGENERATE 1
+    WHILE $(vMinDate) + IterNo() - 1 <= $(vMaxDate);
+
+    STORE CanonicalCalendar INTO [$(vSemanticQvdPath)CanonicalCalendar.qvd] (qvd);
+    DROP TABLE CanonicalCalendar;
+ENDIF
+
+LET vLoadTimestamp = Timestamp(Now(1));
 
 STORE Customers INTO [$(vSemanticQvdPath)Customers.qvd] (qvd);
 STORE Products INTO [$(vSemanticQvdPath)Products.qvd] (qvd);
 STORE FactOrders INTO [$(vSemanticQvdPath)FactOrders.qvd] (qvd);
-STORE CanonicalCalendar INTO [$(vSemanticQvdPath)CanonicalCalendar.qvd] (qvd);
+
+DROP TABLE Customers;
+DROP TABLE Products;
+DROP TABLE FactOrders;
+
+TRACE SEMANTIC LAYER COMPLETE;

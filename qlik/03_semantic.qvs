@@ -5,6 +5,7 @@ SET ErrorMode=1;
 SET DateFormat='YYYY-MM-DD';
 
 $(Must_Include=../config/environment.qvs);
+LET vLoadTimestamp = Timestamp(Now(1));
 
 Customers:
 LOAD
@@ -67,8 +68,6 @@ IF $(vMinDate) <= $(vMaxDate) THEN
     STORE CanonicalCalendar INTO [$(vSemanticQvdPath)CanonicalCalendar.qvd] (qvd);
     DROP TABLE CanonicalCalendar;
 ENDIF
-
-LET vLoadTimestamp = Timestamp(Now(1));
 
 STORE Customers INTO [$(vSemanticQvdPath)Customers.qvd] (qvd);
 STORE Products INTO [$(vSemanticQvdPath)Products.qvd] (qvd);

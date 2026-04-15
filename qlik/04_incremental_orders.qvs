@@ -1,10 +1,15 @@
 // INCREMENTAL ORDER LOAD
-// Demonstrates the common QVD incremental pattern: load only records newer
-// than the latest timestamp already persisted in the transform layer.
+// Demonstrates a safe QVD pattern for new/changed records.
+// A small look-back window protects against late-arriving source records.
+
+SET ErrorMode=1;
+SET DateFormat='YYYY-MM-DD';
+SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
 
 $(Must_Include=../config/environment.qvs);
 
 LET vExistingQvd = '$(vTransformQvdPath)Orders.qvd';
+LET vLastModified = Timestamp('1900-01-01 00:00:00');
 
 IF FileSize('$(vExistingQvd)') > 0 THEN
     ExistingOrders:
@@ -26,46 +31,56 @@ IF FileSize('$(vExistingQvd)') > 0 THEN
     LET vLastModified = Timestamp(Peek('LatestModifiedTimestamp', 0, 'LatestModified'));
     DROP TABLE LatestModified;
 ELSE
-    LET vLastModified = '1900-01-01 00:00:00';
+    ExistingOrders:
+    LOAD * INLINE [
+        OrderID, OrderDate, CustomerID, ProductID, Quantity, Discount, SalesAmount, ModifiedTimestamp
+    ];
 ENDIF
+
+// Buffer the cutoff by one day. In a database source, push this predicate down
+// to the source query. With the CSV demo, Qlik still scans the small extract.
+LET vIncrementalCutoff = Timestamp($(vLastModified) - $(vIncrementalLookbackDays));
 
 NewOrders:
 LOAD
     Trim(OrderID) as OrderID,
-    Date(Date#(OrderDate, 'YYYY-MM-DD')) as OrderDate,
+    Date(Date#(Trim(OrderDate), 'YYYY-MM-DD')) as OrderDate,
     Trim(CustomerID) as CustomerID,
     Trim(ProductID) as ProductID,
     Num(Quantity) as Quantity,
     Num(Discount) as Discount,
     Num(SalesAmount) as SalesAmount,
-    Timestamp(Timestamp#(ModifiedDate, 'YYYY-MM-DD')) as ModifiedTimestamp
+    Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp
 FROM [$(vSourcePath)orders.csv]
 (txt, codepage is 65001, embedded labels, delimiter is ',', msq)
-WHERE Timestamp(Timestamp#(ModifiedDate, 'YYYY-MM-DD')) > Timestamp('$(vLastModified)');
+WHERE Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) >= Timestamp('$(vIncrementalCutoff)')
+  AND Len(Trim(OrderID)) > 0
+  AND Num(Quantity) > 0
+  AND Num(SalesAmount) >= 0;
 
-IF NoOfRows('NewOrders') > 0 THEN
-    CONCATENATE (ExistingOrders)
-    LOAD * RESIDENT NewOrders;
-ENDIF
+CONCATENATE (ExistingOrders)
+LOAD * RESIDENT NewOrders;
 
-IF TableNumber('ExistingOrders') >= 0 THEN
-    Orders_Deduplicated:
-    NoConcatenate
-    LOAD
-        OrderID,
-        FirstSortedValue(OrderDate, -ModifiedTimestamp) as OrderDate,
-        FirstSortedValue(CustomerID, -ModifiedTimestamp) as CustomerID,
-        FirstSortedValue(ProductID, -ModifiedTimestamp) as ProductID,
-        FirstSortedValue(Quantity, -ModifiedTimestamp) as Quantity,
-        FirstSortedValue(Discount, -ModifiedTimestamp) as Discount,
-        FirstSortedValue(SalesAmount, -ModifiedTimestamp) as SalesAmount,
-        Max(ModifiedTimestamp) as ModifiedTimestamp
-    RESIDENT ExistingOrders
-    GROUP BY OrderID;
+// Latest record per OrderID wins. The timestamp is the sort weight; the
+// Max() expression also preserves the latest change timestamp.
+Orders_Deduplicated:
+NoConcatenate
+LOAD
+    OrderID,
+    FirstSortedValue(OrderDate, -ModifiedTimestamp) as OrderDate,
+    FirstSortedValue(CustomerID, -ModifiedTimestamp) as CustomerID,
+    FirstSortedValue(ProductID, -ModifiedTimestamp) as ProductID,
+    FirstSortedValue(Quantity, -ModifiedTimestamp) as Quantity,
+    FirstSortedValue(Discount, -ModifiedTimestamp) as Discount,
+    FirstSortedValue(SalesAmount, -ModifiedTimestamp) as SalesAmount,
+    Max(ModifiedTimestamp) as ModifiedTimestamp
+RESIDENT ExistingOrders
+GROUP BY OrderID;
 
-    STORE Orders_Deduplicated INTO [$(vExistingQvd)] (qvd);
-    DROP TABLE Orders_Deduplicated;
-    DROP TABLE ExistingOrders;
-ENDIF
+STORE Orders_Deduplicated INTO [$(vExistingQvd)] (qvd);
 
+DROP TABLE Orders_Deduplicated;
+DROP TABLE ExistingOrders;
 DROP TABLE NewOrders;
+
+TRACE INCREMENTAL ORDERS LOAD COMPLETE;

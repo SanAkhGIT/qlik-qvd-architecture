@@ -9,7 +9,7 @@ SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
 $(Must_Include=../config/environment.qvs);
 
 LET vExistingQvd = '$(vTransformQvdPath)Orders.qvd';
-LET vLastModified = Timestamp('1900-01-01 00:00:00');
+LET vLastModifiedNum = Num(Date#('1900-01-01', 'YYYY-MM-DD'));
 
 IF FileSize('$(vExistingQvd)') > 0 THEN
     ExistingOrders:
@@ -25,10 +25,10 @@ IF FileSize('$(vExistingQvd)') > 0 THEN
     FROM [$(vExistingQvd)] (qvd);
 
     LatestModified:
-    LOAD Max(ModifiedTimestamp) as LatestModifiedTimestamp
+    LOAD Max(Num(ModifiedTimestamp)) as LatestModifiedNum
     RESIDENT ExistingOrders;
 
-    LET vLastModified = Timestamp(Peek('LatestModifiedTimestamp', 0, 'LatestModified'));
+    LET vLastModifiedNum = Peek('LatestModifiedNum', 0, 'LatestModified');
     DROP TABLE LatestModified;
 ELSE
     ExistingOrders:
@@ -39,7 +39,7 @@ ENDIF
 
 // Buffer the cutoff by one day. In a database source, push this predicate down
 // to the source query. With the CSV demo, Qlik still scans the small extract.
-LET vIncrementalCutoff = Timestamp($(vLastModified) - $(vIncrementalLookbackDays));
+LET vIncrementalCutoffNum = $(vLastModifiedNum) - $(vIncrementalLookbackDays);
 
 NewOrders:
 LOAD
@@ -53,7 +53,7 @@ LOAD
     Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp
 FROM [$(vSourcePath)orders.csv]
 (txt, codepage is 65001, embedded labels, delimiter is ',', msq)
-WHERE Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) >= Timestamp('$(vIncrementalCutoff)')
+WHERE Num(Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD'))) >= $(vIncrementalCutoffNum)
   AND Len(Trim(OrderID)) > 0
   AND Num(Quantity) > 0
   AND Num(SalesAmount) >= 0;
@@ -61,18 +61,16 @@ WHERE Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) >= Timestamp('$(vI
 CONCATENATE (ExistingOrders)
 LOAD * RESIDENT NewOrders;
 
-// Latest record per OrderID wins. The timestamp is the sort weight; the
-// Max() expression also preserves the latest change timestamp.
 Orders_Deduplicated:
 NoConcatenate
 LOAD
     OrderID,
-    FirstSortedValue(OrderDate, -ModifiedTimestamp) as OrderDate,
-    FirstSortedValue(CustomerID, -ModifiedTimestamp) as CustomerID,
-    FirstSortedValue(ProductID, -ModifiedTimestamp) as ProductID,
-    FirstSortedValue(Quantity, -ModifiedTimestamp) as Quantity,
-    FirstSortedValue(Discount, -ModifiedTimestamp) as Discount,
-    FirstSortedValue(SalesAmount, -ModifiedTimestamp) as SalesAmount,
+    FirstSortedValue(OrderDate, -Num(ModifiedTimestamp)) as OrderDate,
+    FirstSortedValue(CustomerID, -Num(ModifiedTimestamp)) as CustomerID,
+    FirstSortedValue(ProductID, -Num(ModifiedTimestamp)) as ProductID,
+    FirstSortedValue(Quantity, -Num(ModifiedTimestamp)) as Quantity,
+    FirstSortedValue(Discount, -Num(ModifiedTimestamp)) as Discount,
+    FirstSortedValue(SalesAmount, -Num(ModifiedTimestamp)) as SalesAmount,
     Max(ModifiedTimestamp) as ModifiedTimestamp
 RESIDENT ExistingOrders
 GROUP BY OrderID;

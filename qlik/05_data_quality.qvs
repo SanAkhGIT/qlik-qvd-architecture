@@ -1,7 +1,27 @@
 // DATA QUALITY LAYER
-// Run after Raw ingestion and before publishing semantic QVDs.
+// Validates reusable transform QVDs before semantic publication.
+
+SET ErrorMode=1;
 
 $(Must_Include=../config/environment.qvs);
+
+MapCustomer:
+MAPPING LOAD CustomerID, 1
+FROM [$(vTransformQvdPath)Customers.qvd] (qvd);
+
+MapProduct:
+MAPPING LOAD ProductID, 1
+FROM [$(vTransformQvdPath)Products.qvd] (qvd);
+
+DQ_Orders_Base:
+LOAD
+    OrderID,
+    CustomerID,
+    ProductID,
+    OrderDate,
+    Quantity,
+    SalesAmount
+FROM [$(vTransformQvdPath)Orders.qvd] (qvd);
 
 DQ_Orders:
 LOAD
@@ -12,8 +32,10 @@ LOAD
     Sum(If(IsNull(ProductID) or Len(Trim(ProductID)) = 0, 1, 0)) as MissingProductIDs,
     Sum(If(IsNull(OrderDate), 1, 0)) as InvalidDates,
     Sum(If(Quantity <= 0, 1, 0)) as InvalidQuantities,
-    Sum(If(SalesAmount < 0, 1, 0)) as InvalidSalesAmounts
-FROM [$(vTransformQvdPath)Orders.qvd] (qvd);
+    Sum(If(SalesAmount < 0, 1, 0)) as InvalidSalesAmounts,
+    Sum(If(ApplyMap('MapCustomer', CustomerID, 0) = 0, 1, 0)) as OrphanCustomerReferences,
+    Sum(If(ApplyMap('MapProduct', ProductID, 0) = 0, 1, 0)) as OrphanProductReferences
+RESIDENT DQ_Orders_Base;
 
 DQ_Customers:
 LOAD
@@ -30,17 +52,35 @@ LOAD
     Sum(If(UnitPrice < 0, 1, 0)) as InvalidPrices
 FROM [$(vTransformQvdPath)Products.qvd] (qvd);
 
-// Fail-fast gate. In production, route these metrics to an audit QVD/log store.
 LET vDQOrders = Peek('TotalRows', 0, 'DQ_Orders');
 LET vDQDistinctOrders = Peek('DistinctOrderIDs', 0, 'DQ_Orders');
 LET vDQNullOrderIDs = Peek('NullOrderIDs', 0, 'DQ_Orders');
+LET vDQOrphanCustomers = Peek('OrphanCustomerReferences', 0, 'DQ_Orders');
+LET vDQOrphanProducts = Peek('OrphanProductReferences', 0, 'DQ_Orders');
+LET vDQInvalidDates = Peek('InvalidDates', 0, 'DQ_Orders');
+LET vDQInvalidQuantities = Peek('InvalidQuantities', 0, 'DQ_Orders');
+LET vDQInvalidSales = Peek('InvalidSalesAmounts', 0, 'DQ_Orders');
 
-IF $(vDQOrders) <> $(vDQDistinctOrders) OR $(vDQNullOrderIDs) > 0 THEN
-    TRACE *** DATA QUALITY FAILURE: Orders key integrity check failed ***;
-    SET ErrorMode=1;
-    EXIT SCRIPT;
-ENDIF;
+IF $(vDQOrders) <> $(vDQDistinctOrders)
+    OR $(vDQNullOrderIDs) > 0
+    OR $(vDQOrphanCustomers) > 0
+    OR $(vDQOrphanProducts) > 0
+    OR $(vDQInvalidDates) > 0
+    OR $(vDQInvalidQuantities) > 0
+    OR $(vDQInvalidSales) > 0 THEN
+    TRACE *** DATA QUALITY FAILURE: Orders validation gate failed ***;
+    IF $(vDQFailOnError) = 1 THEN
+        EXIT SCRIPT;
+    ENDIF
+ENDIF
 
-STORE DQ_Orders INTO [$(vTransformQvdPath)DQ_Orders.qvd] (qvd);
-STORE DQ_Customers INTO [$(vTransformQvdPath)DQ_Customers.qvd] (qvd);
-STORE DQ_Products INTO [$(vTransformQvdPath)DQ_Products.qvd] (qvd);
+STORE DQ_Orders INTO [$(vAuditQvdPath)DQ_Orders.qvd] (qvd);
+STORE DQ_Customers INTO [$(vAuditQvdPath)DQ_Customers.qvd] (qvd);
+STORE DQ_Products INTO [$(vAuditQvdPath)DQ_Products.qvd] (qvd);
+
+DROP TABLE DQ_Orders_Base;
+DROP TABLE DQ_Orders;
+DROP TABLE DQ_Customers;
+DROP TABLE DQ_Products;
+
+TRACE DATA QUALITY VALIDATION COMPLETE;

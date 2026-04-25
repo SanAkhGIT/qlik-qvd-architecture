@@ -1,24 +1,18 @@
 // MASTER RELOAD
 // Recommended execution order for the complete lab.
-// Run this from a Qlik Sense load script after configuring the folder connection.
+// Create a Qlik Sense folder connection named QlikQVDArchitecture that points
+// to the repository root before running this script.
 
-$(Must_Include=../config/environment.qvs);
+$(Must_Include=lib://QlikQVDArchitecture/config/environment.qvs);
 
 TRACE ================================;
 TRACE START QLIK QVD ARCHITECTURE LAB;
 TRACE ================================;
 
-// 1. Source-aligned ingestion
-$(Must_Include=qlik/01_raw.qvs);
-
-// 2. Reusable cleansing and standardisation
-$(Must_Include=qlik/02_transform.qvs);
-
-// 3. Data-quality gate
-$(Must_Include=qlik/05_data_quality.qvs);
-
-// 4. Application-ready semantic QVDs
-$(Must_Include=qlik/03_semantic.qvs);
+$(Must_Include=lib://QlikQVDArchitecture/qlik/01_raw.qvs);
+$(Must_Include=lib://QlikQVDArchitecture/qlik/02_transform.qvs);
+$(Must_Include=lib://QlikQVDArchitecture/qlik/05_data_quality.qvs);
+$(Must_Include=lib://QlikQVDArchitecture/qlik/03_semantic.qvs);
 
 TRACE ================================;
 TRACE QLIK QVD ARCHITECTURE LAB DONE;

@@ -5,55 +5,50 @@ SET ErrorMode=1;
 SET DateFormat='YYYY-MM-DD';
 SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
 
-$(Must_Include=../config/environment.qvs);
+$(Must_Include=lib://QlikQVDArchitecture/config/environment.qvs);
 
 Customers_Transform:
-LOAD
-    Trim(CustomerID) as CustomerID,
-    Capitalize(Trim(CustomerName)) as CustomerName,
-    Upper(Trim(Region)) as Region,
-    Upper(Trim(Country)) as Country,
-    Capitalize(Trim(Segment)) as Segment
+LOAD Trim(CustomerID) as CustomerID,
+     Capitalize(Trim(CustomerName)) as CustomerName,
+     Upper(Trim(Region)) as Region,
+     Upper(Trim(Country)) as Country,
+     Capitalize(Trim(Segment)) as Segment
 FROM [$(vRawQvdPath)Customers.qvd] (qvd)
 WHERE Len(Trim(CustomerID)) > 0;
 
 Products_Transform:
-LOAD
-    Trim(ProductID) as ProductID,
-    Capitalize(Trim(ProductName)) as ProductName,
-    Capitalize(Trim(Category)) as Category,
-    Capitalize(Trim(Subcategory)) as Subcategory,
-    Num(UnitPrice) as UnitPrice
+LOAD Trim(ProductID) as ProductID,
+     Capitalize(Trim(ProductName)) as ProductName,
+     Capitalize(Trim(Category)) as Category,
+     Capitalize(Trim(Subcategory)) as Subcategory,
+     Num(UnitPrice) as UnitPrice
 FROM [$(vRawQvdPath)Products.qvd] (qvd)
 WHERE Len(Trim(ProductID)) > 0;
 
 Orders_Transform:
-LOAD
-    Trim(OrderID) as OrderID,
-    Date(Date#(Trim(OrderDate), 'YYYY-MM-DD')) as OrderDate,
-    Trim(CustomerID) as CustomerID,
-    Trim(ProductID) as ProductID,
-    Num(Quantity) as Quantity,
-    Num(Discount) as Discount,
-    Num(SalesAmount) as SalesAmount,
-    Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp,
-    If(Len(Trim(CustomerID)) = 0 or Len(Trim(ProductID)) = 0
+LOAD Trim(OrderID) as OrderID,
+     Date(Date#(Trim(OrderDate), 'YYYY-MM-DD')) as OrderDate,
+     Trim(CustomerID) as CustomerID,
+     Trim(ProductID) as ProductID,
+     Num(Quantity) as Quantity,
+     Num(Discount) as Discount,
+     Num(SalesAmount) as SalesAmount,
+     Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp,
+     If(Len(Trim(CustomerID)) = 0 or Len(Trim(ProductID)) = 0
         or IsNull(OrderDate) or Quantity <= 0 or SalesAmount < 0, 1, 0) as IsInvalidOrder
 FROM [$(vRawQvdPath)Orders.qvd] (qvd)
 WHERE Len(Trim(OrderID)) > 0;
 
-// One reusable clean fact QVD. Duplicates are removed deterministically by OrderID.
 Orders_Valid:
 NoConcatenate
-LOAD
-    OrderID,
-    FirstSortedValue(OrderDate, -ModifiedTimestamp) as OrderDate,
-    FirstSortedValue(CustomerID, -ModifiedTimestamp) as CustomerID,
-    FirstSortedValue(ProductID, -ModifiedTimestamp) as ProductID,
-    FirstSortedValue(Quantity, -ModifiedTimestamp) as Quantity,
-    FirstSortedValue(Discount, -ModifiedTimestamp) as Discount,
-    FirstSortedValue(SalesAmount, -ModifiedTimestamp) as SalesAmount,
-    Max(ModifiedTimestamp) as ModifiedTimestamp
+LOAD OrderID,
+     FirstSortedValue(OrderDate, -Num(ModifiedTimestamp)) as OrderDate,
+     FirstSortedValue(CustomerID, -Num(ModifiedTimestamp)) as CustomerID,
+     FirstSortedValue(ProductID, -Num(ModifiedTimestamp)) as ProductID,
+     FirstSortedValue(Quantity, -Num(ModifiedTimestamp)) as Quantity,
+     FirstSortedValue(Discount, -Num(ModifiedTimestamp)) as Discount,
+     FirstSortedValue(SalesAmount, -Num(ModifiedTimestamp)) as SalesAmount,
+     Max(ModifiedTimestamp) as ModifiedTimestamp
 RESIDENT Orders_Transform
 WHERE IsInvalidOrder = 0
 GROUP BY OrderID;

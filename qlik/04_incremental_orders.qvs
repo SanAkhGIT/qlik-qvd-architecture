@@ -6,28 +6,20 @@ SET ErrorMode=1;
 SET DateFormat='YYYY-MM-DD';
 SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
 
-$(Must_Include=../config/environment.qvs);
+$(Must_Include=lib://QlikQVDArchitecture/config/environment.qvs);
 
 LET vExistingQvd = '$(vTransformQvdPath)Orders.qvd';
 LET vLastModifiedNum = Num(Date#('1900-01-01', 'YYYY-MM-DD'));
 
 IF FileSize('$(vExistingQvd)') > 0 THEN
     ExistingOrders:
-    LOAD
-        OrderID,
-        OrderDate,
-        CustomerID,
-        ProductID,
-        Quantity,
-        Discount,
-        SalesAmount,
-        ModifiedTimestamp
+    LOAD OrderID, OrderDate, CustomerID, ProductID, Quantity, Discount,
+         SalesAmount, ModifiedTimestamp
     FROM [$(vExistingQvd)] (qvd);
 
     LatestModified:
     LOAD Max(Num(ModifiedTimestamp)) as LatestModifiedNum
     RESIDENT ExistingOrders;
-
     LET vLastModifiedNum = Peek('LatestModifiedNum', 0, 'LatestModified');
     DROP TABLE LatestModified;
 ELSE
@@ -37,20 +29,17 @@ ELSE
     ];
 ENDIF
 
-// Buffer the cutoff by one day. In a database source, push this predicate down
-// to the source query. With the CSV demo, Qlik still scans the small extract.
 LET vIncrementalCutoffNum = $(vLastModifiedNum) - $(vIncrementalLookbackDays);
 
 NewOrders:
-LOAD
-    Trim(OrderID) as OrderID,
-    Date(Date#(Trim(OrderDate), 'YYYY-MM-DD')) as OrderDate,
-    Trim(CustomerID) as CustomerID,
-    Trim(ProductID) as ProductID,
-    Num(Quantity) as Quantity,
-    Num(Discount) as Discount,
-    Num(SalesAmount) as SalesAmount,
-    Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp
+LOAD Trim(OrderID) as OrderID,
+     Date(Date#(Trim(OrderDate), 'YYYY-MM-DD')) as OrderDate,
+     Trim(CustomerID) as CustomerID,
+     Trim(ProductID) as ProductID,
+     Num(Quantity) as Quantity,
+     Num(Discount) as Discount,
+     Num(SalesAmount) as SalesAmount,
+     Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp
 FROM [$(vSourcePath)orders.csv]
 (txt, codepage is 65001, embedded labels, delimiter is ',', msq)
 WHERE Num(Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD'))) >= $(vIncrementalCutoffNum)
@@ -63,20 +52,18 @@ LOAD * RESIDENT NewOrders;
 
 Orders_Deduplicated:
 NoConcatenate
-LOAD
-    OrderID,
-    FirstSortedValue(OrderDate, -Num(ModifiedTimestamp)) as OrderDate,
-    FirstSortedValue(CustomerID, -Num(ModifiedTimestamp)) as CustomerID,
-    FirstSortedValue(ProductID, -Num(ModifiedTimestamp)) as ProductID,
-    FirstSortedValue(Quantity, -Num(ModifiedTimestamp)) as Quantity,
-    FirstSortedValue(Discount, -Num(ModifiedTimestamp)) as Discount,
-    FirstSortedValue(SalesAmount, -Num(ModifiedTimestamp)) as SalesAmount,
-    Max(ModifiedTimestamp) as ModifiedTimestamp
+LOAD OrderID,
+     FirstSortedValue(OrderDate, -Num(ModifiedTimestamp)) as OrderDate,
+     FirstSortedValue(CustomerID, -Num(ModifiedTimestamp)) as CustomerID,
+     FirstSortedValue(ProductID, -Num(ModifiedTimestamp)) as ProductID,
+     FirstSortedValue(Quantity, -Num(ModifiedTimestamp)) as Quantity,
+     FirstSortedValue(Discount, -Num(ModifiedTimestamp)) as Discount,
+     FirstSortedValue(SalesAmount, -Num(ModifiedTimestamp)) as SalesAmount,
+     Max(ModifiedTimestamp) as ModifiedTimestamp
 RESIDENT ExistingOrders
 GROUP BY OrderID;
 
 STORE Orders_Deduplicated INTO [$(vExistingQvd)] (qvd);
-
 DROP TABLE Orders_Deduplicated;
 DROP TABLE ExistingOrders;
 DROP TABLE NewOrders;

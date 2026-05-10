@@ -2,54 +2,41 @@
 // Validates reusable transform QVDs before semantic publication.
 
 SET ErrorMode=1;
-
-$(Must_Include=../config/environment.qvs);
+$(Must_Include=lib://QlikQVDArchitecture/config/environment.qvs);
 
 MapCustomer:
-MAPPING LOAD CustomerID, 1
-FROM [$(vTransformQvdPath)Customers.qvd] (qvd);
-
+MAPPING LOAD CustomerID, 1 FROM [$(vTransformQvdPath)Customers.qvd] (qvd);
 MapProduct:
-MAPPING LOAD ProductID, 1
-FROM [$(vTransformQvdPath)Products.qvd] (qvd);
+MAPPING LOAD ProductID, 1 FROM [$(vTransformQvdPath)Products.qvd] (qvd);
 
 DQ_Orders_Base:
-LOAD
-    OrderID,
-    CustomerID,
-    ProductID,
-    OrderDate,
-    Quantity,
-    SalesAmount
+LOAD OrderID, CustomerID, ProductID, OrderDate, Quantity, SalesAmount
 FROM [$(vTransformQvdPath)Orders.qvd] (qvd);
 
 DQ_Orders:
-LOAD
-    Count(OrderID) as TotalRows,
-    Count(DISTINCT OrderID) as DistinctOrderIDs,
-    Sum(If(IsNull(OrderID) or Len(Trim(OrderID)) = 0, 1, 0)) as NullOrderIDs,
-    Sum(If(IsNull(CustomerID) or Len(Trim(CustomerID)) = 0, 1, 0)) as MissingCustomerIDs,
-    Sum(If(IsNull(ProductID) or Len(Trim(ProductID)) = 0, 1, 0)) as MissingProductIDs,
-    Sum(If(IsNull(OrderDate), 1, 0)) as InvalidDates,
-    Sum(If(Quantity <= 0, 1, 0)) as InvalidQuantities,
-    Sum(If(SalesAmount < 0, 1, 0)) as InvalidSalesAmounts,
-    Sum(If(ApplyMap('MapCustomer', CustomerID, 0) = 0, 1, 0)) as OrphanCustomerReferences,
-    Sum(If(ApplyMap('MapProduct', ProductID, 0) = 0, 1, 0)) as OrphanProductReferences
+LOAD Count(OrderID) as TotalRows,
+     Count(DISTINCT OrderID) as DistinctOrderIDs,
+     Sum(If(IsNull(OrderID) or Len(Trim(OrderID)) = 0, 1, 0)) as NullOrderIDs,
+     Sum(If(IsNull(CustomerID) or Len(Trim(CustomerID)) = 0, 1, 0)) as MissingCustomerIDs,
+     Sum(If(IsNull(ProductID) or Len(Trim(ProductID)) = 0, 1, 0)) as MissingProductIDs,
+     Sum(If(IsNull(OrderDate), 1, 0)) as InvalidDates,
+     Sum(If(Quantity <= 0, 1, 0)) as InvalidQuantities,
+     Sum(If(SalesAmount < 0, 1, 0)) as InvalidSalesAmounts,
+     Sum(ApplyMap('MapCustomer', CustomerID, 0) = 0) as OrphanCustomerReferences,
+     Sum(ApplyMap('MapProduct', ProductID, 0) = 0) as OrphanProductReferences
 RESIDENT DQ_Orders_Base;
 
 DQ_Customers:
-LOAD
-    Count(CustomerID) as CustomerRows,
-    Count(DISTINCT CustomerID) as DistinctCustomerIDs,
-    Sum(If(IsNull(CustomerID) or Len(Trim(CustomerID)) = 0, 1, 0)) as NullCustomerIDs
+LOAD Count(CustomerID) as CustomerRows,
+     Count(DISTINCT CustomerID) as DistinctCustomerIDs,
+     Sum(If(IsNull(CustomerID) or Len(Trim(CustomerID)) = 0, 1, 0)) as NullCustomerIDs
 FROM [$(vTransformQvdPath)Customers.qvd] (qvd);
 
 DQ_Products:
-LOAD
-    Count(ProductID) as ProductRows,
-    Count(DISTINCT ProductID) as DistinctProductIDs,
-    Sum(If(IsNull(ProductID) or Len(Trim(ProductID)) = 0, 1, 0)) as NullProductIDs,
-    Sum(If(UnitPrice < 0, 1, 0)) as InvalidPrices
+LOAD Count(ProductID) as ProductRows,
+     Count(DISTINCT ProductID) as DistinctProductIDs,
+     Sum(If(IsNull(ProductID) or Len(Trim(ProductID)) = 0, 1, 0)) as NullProductIDs,
+     Sum(If(UnitPrice < 0, 1, 0)) as InvalidPrices
 FROM [$(vTransformQvdPath)Products.qvd] (qvd);
 
 LET vDQOrders = Peek('TotalRows', 0, 'DQ_Orders');

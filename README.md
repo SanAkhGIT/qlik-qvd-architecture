@@ -2,7 +2,7 @@
 
 A production-style portfolio demonstration of a **three-layer QVD architecture** using synthetic sales data.
 
-The project separates source ingestion, reusable transformation and application-ready semantic data into Raw, Transform and Semantic layers.
+The project separates source ingestion, reusable transformation, data-quality controls and application-ready semantic data into a maintainable reload pipeline.
 
 > Portfolio project using synthetic data. No proprietary client data, scripts or internal architecture are included.
 
@@ -14,11 +14,11 @@ The project separates source ingestion, reusable transformation and application-
 Source Data
     │
     ▼
- RAW QVDs ──► TRANSFORM QVDs ──► SEMANTIC QVDs ──► Qlik Sense
-              │                    │
-              ├─ cleansing         ├─ fact + dimensions
-              ├─ validation        ├─ canonical calendar
-              └─ incremental load  └─ KPI-ready data
+ RAW QVDs ──► TRANSFORM QVDs ──► DQ GATE ──► SEMANTIC QVDs ──► Qlik Sense
+              │                  │            │
+              ├─ cleansing       ├─ keys      ├─ fact + dimensions
+              ├─ standardisation ├─ refs      ├─ canonical calendar
+              └─ deduplication   └─ validity  └─ KPI-ready data
 ```
 
 ## What this demonstrates
@@ -27,10 +27,10 @@ Source Data
 - Source-aligned Raw ingestion
 - Reusable Transform QVDs
 - Semantic star-style model
-- Incremental loading using `ModifiedTimestamp`
+- Timestamp-based incremental loading with a configurable look-back window
 - Data-quality gates and audit metrics
 - Conformed dimensions and canonical calendar
-- Avoidance of unnecessary joins and synthetic keys
+- Explicit fact grain and controlled associations
 - Separation of technical and business logic
 - Git-based source control for Qlik script and documentation
 
@@ -38,28 +38,30 @@ Source Data
 
 ```text
 qlik-qvd-architecture/
-├── architecture/
-│   └── architecture.svg
+├── architecture/architecture.svg
 ├── config/
-│   └── environment.qvs
-├── data/
-│   └── sample/
-│       ├── customers.csv
-│       ├── products.csv
-│       └── orders.csv
+│   ├── environment.qvs
+│   └── environment.local.example.qvs
+├── data/sample/
+│   ├── customers.csv
+│   ├── products.csv
+│   └── orders.csv
 ├── docs/
+│   ├── dashboard.md
 │   ├── data-modelling.md
 │   ├── data-quality.md
 │   ├── incremental-loading.md
-│   └── performance.md
-├── python/
-│   └── generate_data.py
+│   ├── performance.md
+│   └── README.md
+├── python/generate_data.py
 ├── qlik/
+│   ├── 00_master_reload.qvs
 │   ├── 01_raw.qvs
 │   ├── 02_transform.qvs
 │   ├── 03_semantic.qvs
 │   ├── 04_incremental_orders.qvs
 │   └── 05_data_quality.qvs
+├── tests/validate_source_data.py
 └── README.md
 ```
 
@@ -67,7 +69,7 @@ qlik-qvd-architecture/
 
 ### Fact
 
-**FactOrders** — one row per `OrderID`.
+**FactOrders** — one row per `OrderID` after transformation and deduplication.
 
 Fields include order date, customer, product, quantity, discount, sales amount and modification timestamp.
 
@@ -77,45 +79,70 @@ Fields include order date, customer, product, quantity, discount, sales amount a
 
 **Products** — product, category, subcategory and unit price.
 
-**CanonicalCalendar** — reusable date attributes including year, month, month-year, week and quarter.
+**CanonicalCalendar** — reusable date attributes including year, quarter, month, month-year, week and weekday.
 
-The model uses explicit keys and avoids unnecessary joins.
+`OrderDate`, `CustomerID` and `ProductID` are intentional association keys. The model avoids unnecessary joins and synthetic keys.
 
-## Layer Responsibilities
+## Reload Pipeline
 
-### 1. Raw
+`qlik/00_master_reload.qvs` orchestrates the recommended sequence:
 
-`qlik/01_raw.qvs` ingests source CSVs with minimal transformation and persists source-aligned QVDs.
+1. Raw ingestion
+2. Transform and standardisation
+3. Data-quality gate
+4. Semantic publication
 
-### 2. Transform
+For subsequent reloads, `qlik/04_incremental_orders.qvs` can maintain the order transform QVD independently using `ModifiedTimestamp`.
 
-`qlik/02_transform.qvs` cleans and standardises fields, rejects invalid orders and persists reusable transform QVDs.
+## Running the Data Generator
 
-### 3. Semantic
+From the repository root:
 
-`qlik/03_semantic.qvs` builds the application-ready fact/dimension model and canonical calendar.
+```bash
+python python/generate_data.py
+python tests/validate_source_data.py
+```
 
-### Supporting processes
+The generator creates deterministic synthetic customers, products and orders under `data/sample/`. The validation script checks key uniqueness, referential integrity and basic numeric validity.
 
-`qlik/04_incremental_orders.qvs` demonstrates timestamp-based incremental loading.
+## Running in Qlik Sense
 
-`qlik/05_data_quality.qvs` validates key integrity and publishes quality metrics.
+1. Create a Qlik Sense folder data connection named `QlikQVDArchitecture` pointing at the repository root or an exported project directory.
+2. Review `config/environment.qvs` and adjust the connection/path variables for your environment.
+3. Run `qlik/00_master_reload.qvs` to execute the full Raw → Transform → DQ → Semantic pipeline.
+4. For subsequent source changes, run `qlik/04_incremental_orders.qvs` before the semantic layer.
+5. Build the application from the semantic QVDs using the design in `docs/dashboard.md`.
 
-## Incremental Loading
-
-The incremental pattern reads the latest persisted `ModifiedTimestamp`, extracts newer source records, combines them with existing data and deduplicates by `OrderID`.
-
-This is intentionally a demonstration pattern. Production CDC must also address late-arriving data, deletes, source corrections, idempotency, recovery and auditability.
-
-See [`docs/incremental-loading.md`](docs/incremental-loading.md).
+The exact Qlik connection setup is environment-specific. The repository deliberately contains no credentials or server-specific secrets.
 
 ## Data Quality
 
-The quality layer checks null keys, duplicate order IDs, invalid dates, missing references, invalid quantities and negative sales/prices.
+`qlik/05_data_quality.qvs` checks:
 
-The order-key integrity check is configured as a fail-fast gate. In production, quality thresholds should be agreed with business owners and operational alerts should be added.
+- Null and duplicate order keys
+- Missing customer/product keys
+- Orphan customer/product references
+- Invalid dates
+- Invalid quantities
+- Negative sales amounts
+- Duplicate customer/product keys
+- Invalid product prices
 
-See [`docs/data-quality.md`](docs/data-quality.md).
+The order-key and referential-integrity checks are fail-fast by default. Production implementations should additionally persist reload metadata, thresholds, rejected-record details and operational alerts.
+
+## Incremental Loading
+
+The incremental process reads the latest persisted `ModifiedTimestamp`, applies a configurable one-day look-back, loads the affected source slice, combines it with the existing QVD and deduplicates by `OrderID`.
+
+The look-back is deliberate: a strict `>` timestamp cutoff can miss late-arriving records. Real production CDC also needs explicit delete handling, source correction semantics, idempotency, recovery and audit logging.
+
+See `docs/incremental-loading.md`.
+
+## Dashboard Design
+
+The semantic model supports an executive overview, sales analysis and data-quality sheet. Recommended KPIs include Net Sales, Orders, Units, Average Order Value and Average Discount.
+
+See `docs/dashboard.md` for dimensions, measures and UX guidance.
 
 ## Performance Principles
 
@@ -127,29 +154,7 @@ See [`docs/data-quality.md`](docs/data-quality.md).
 - Avoid unnecessary joins, `DISTINCT` operations and synthetic keys.
 - Measure reload duration, RAM, QVD size and application response time instead of inventing benchmarks.
 
-See [`docs/performance.md`](docs/performance.md).
-
-## Running the Data Generator
-
-From the repository root:
-
-```bash
-python python/generate_data.py
-```
-
-The generator creates deterministic synthetic customers, products and orders under `data/sample/`.
-
-## Running in Qlik Sense
-
-1. Create a Qlik Sense data connection named `QlikQvdArchitecture` pointing at the repository root or an exported project directory.
-2. Review `config/environment.qvs` and adjust the connection/path variables for your environment.
-3. Run the Raw script to create Raw QVDs.
-4. Run the Transform script to create Transform QVDs.
-5. Run the Data Quality script and resolve any failed checks.
-6. Run the Semantic script to publish application-ready QVDs.
-7. Run the incremental script on subsequent reloads when the source contains new/changed records.
-
-The exact Qlik connection setup is environment-specific; the repository deliberately does not contain credentials or server-specific configuration.
+See `docs/performance.md`.
 
 ## Technology
 

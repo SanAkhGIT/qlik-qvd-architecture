@@ -1,0 +1,27 @@
+// APPLICATION LOAD SCRIPT
+// Loads only application-ready semantic QVDs. No source extraction occurs here.
+
+SET ErrorMode=1;
+SET DateFormat='YYYY-MM-DD';
+
+$(Must_Include=lib://QlikQVDArchitecture/config/environment.qvs);
+
+Customers:
+LOAD CustomerID, CustomerName, Region, Country, Segment
+FROM [$(vSemanticQvdPath)Customers.qvd] (qvd);
+
+Products:
+LOAD ProductID, ProductName, Category, Subcategory, UnitPrice
+FROM [$(vSemanticQvdPath)Products.qvd] (qvd);
+
+FactOrders:
+LOAD OrderID, OrderDate, CustomerID, ProductID, Quantity, Discount,
+     SalesAmount, NetUnitSales, OrderYear, OrderMonth, DataLoadTimestamp
+FROM [$(vSemanticQvdPath)FactOrders.qvd] (qvd);
+
+CanonicalCalendar:
+LOAD OrderDate, CalendarYear, CalendarMonth, CalendarMonthYear,
+     CalendarWeek, CalendarWeekDay, CalendarQuarter, IsWeekday
+FROM [$(vSemanticQvdPath)CanonicalCalendar.qvd] (qvd);
+
+TRACE SEMANTIC APPLICATION LOAD COMPLETE;

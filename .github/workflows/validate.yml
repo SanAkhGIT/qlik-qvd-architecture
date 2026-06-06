@@ -1,0 +1,23 @@
+name: Validate portfolio project
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate source extracts
+        run: python tests/validate_source_data.py
+
+      - name: Compile Python scripts
+        run: python -m py_compile python/generate_data.py tests/validate_source_data.py

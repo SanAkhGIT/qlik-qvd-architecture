@@ -2,6 +2,10 @@
 
 The semantic layer is designed to support a compact executive sales dashboard without embedding presentation logic into the QVD load layers.
 
+## Application build spec
+
+The detailed, implementation-ready specification is in [`docs/qlik-app-build-spec.md`](qlik-app-build-spec.md). It defines master dimensions, master measures, set-analysis expressions, drill-downs, sheets, selection behaviour, alternate-state examples and interview demonstration flow.
+
 ## Sheet 1 — Executive Overview
 
 ### KPI objects
@@ -42,7 +46,15 @@ Recommended measures:
 - `Avg(Discount)`
 - `Sum(SalesAmount) / Count(DISTINCT OrderID)`
 
-## Sheet 3 — Data Quality
+## Sheet 3 — Product & Customer Detail
+
+Use this sheet for analyst-level drill-down rather than adding more executive KPIs.
+
+- Product drill-down: Category → Subcategory → ProductName
+- Geography drill-down: Region → Country
+- Customer analysis: Segment → Region → Country → CustomerName
+
+## Sheet 4 — Data Quality Monitor
 
 Expose the audit QVD metrics:
 
@@ -65,6 +77,28 @@ Use the canonical calendar for date selections. `OrderDate` is the intentional a
 
 Use dimension fields from `Customers` and `Products` rather than duplicating those attributes into the fact table.
 
+## Set-analysis examples
+
+Current-selection sales:
+
+```qlik
+Sum({$} SalesAmount)
+```
+
+All-data benchmark:
+
+```qlik
+Sum({1} SalesAmount)
+```
+
+Share of all-data sales:
+
+```qlik
+Sum({$} SalesAmount) / Sum({1} SalesAmount)
+```
+
+For a full expression catalog and the cautions around year-over-year comparisons, see [`docs/qlik-app-build-spec.md`](qlik-app-build-spec.md).
+
 ## UX guidance
 
 - Keep the overview to 5–7 primary visuals.
@@ -73,3 +107,4 @@ Use dimension fields from `Customers` and `Products` rather than duplicating tho
 - Use drill-downs for Year → Quarter → Month where useful.
 - Keep KPI definitions identical across sheets.
 - Avoid set-analysis logic that duplicates transformation rules already implemented in the semantic layer.
+- Keep technical fields such as `DataLoadTimestamp` out of normal business filters.

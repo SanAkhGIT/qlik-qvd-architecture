@@ -59,6 +59,7 @@ The project separates source ingestion, reusable transformation, data-quality co
 - Separation of technical and business logic
 - Git-based source control
 - Automated validation with GitHub Actions
+- A concrete Qlik Sense application blueprint with reusable master items and set-analysis examples
 
 ## Repository Structure
 
@@ -81,7 +82,8 @@ qlik-qvd-architecture/
 │   ├── dashboard.md
 │   ├── incremental-loading.md
 │   ├── interview-defence.md
-│   └── performance.md
+│   ├── performance.md
+│   └── qlik-app-build-spec.md
 ├── python/
 │   └── generate_data.py
 ├── qlik/
@@ -141,6 +143,24 @@ The model uses explicit keys and keeps dimensions separate from the fact rather 
 
 `qlik/06_app_load.qvs` loads only semantic QVDs. The application is deliberately isolated from source extraction and transformation logic.
 
+## Qlik Sense Application Blueprint
+
+The project now includes an implementation-ready application specification covering:
+
+- Executive Overview sheet
+- Sales Analysis sheet
+- Product & Customer Detail sheet
+- Data Quality Monitor sheet
+- Master dimensions and reusable master measures
+- Calendar, product and geography drill-downs
+- Set-analysis examples for current selection, all-data benchmarks, contribution and YoY comparison
+- Alternate-state comparative analysis example
+- Selection/navigation rules
+- Performance guardrails
+- A practical interview demonstration sequence
+
+See [`docs/qlik-app-build-spec.md`](docs/qlik-app-build-spec.md) and [`docs/dashboard.md`](docs/dashboard.md).
+
 ## Incremental Loading
 
 `qlik/04_incremental_orders.qvs` demonstrates a timestamp-based insert/update pattern. Existing QVD state supplies the latest modification timestamp; a configurable look-back window protects against late-arriving source records, after which the data is deduplicated by `OrderID`.
@@ -160,7 +180,7 @@ See [`docs/incremental-loading.md`](docs/incremental-loading.md) and [`docs/inte
 - Avoid unnecessary joins, `DISTINCT` operations and synthetic keys.
 - Measure reload duration, RAM, QVD size and application response time instead of inventing benchmarks.
 
-Qlik documents that QVDs are optimized for script reads and that transformations or certain WHERE clauses can prevent optimized mode. See the official Qlik documentation linked from the project notes.
+Qlik documents that QVDs are optimized for script reads and that transformations or certain WHERE clauses can prevent optimized mode.
 
 ## Validation
 
@@ -185,7 +205,8 @@ GitHub Actions runs the validation and Python compilation automatically on pushe
 3. Run `qlik/00_master_reload.qvs` for the initial build, or execute the individual scripts in the documented order.
 4. Confirm the Data Quality gate passes.
 5. Load the semantic QVDs through `qlik/06_app_load.qvs` in the application.
-6. On subsequent reloads, use the incremental order process when the source provides reliable modification timestamps.
+6. Build the sheets and master items from [`docs/qlik-app-build-spec.md`](docs/qlik-app-build-spec.md).
+7. On subsequent reloads, use the incremental order process when the source provides reliable modification timestamps.
 
 The repository intentionally contains no credentials or server-specific secrets.
 

@@ -1,14 +1,9 @@
 """Inspect and validate QVD file metadata without loading QVD records.
 
-The QVD format stores an XML header before the compressed/binary data section.
-This utility reads only that header, so it is suitable for lightweight pre-load
-checks in a Qlik pipeline. It uses only the Python standard library.
-
-Examples:
-    python python/qvd_metadata_validator.py --path ./qvd/semantic
-    python python/qvd_metadata_validator.py --path ./qvd/semantic --json
-    python python/qvd_metadata_validator.py --path ./qvd/semantic --min-records 1
-    python python/qvd_metadata_validator.py --path ./qvd/semantic --expected-fields tests/qvd_contract.json
+QVD files store an XML header before the binary data section. This utility
+reads the header incrementally and stops at the header terminator, so it does
+not load the QVD data section into memory. It is suitable for lightweight
+pre-load checks in a Qlik pipeline and uses only the Python standard library.
 """
 from __future__ import annotations
 
@@ -61,16 +56,27 @@ def _int(value: str | None) -> int | None:
         return None
 
 
+def _read_header(path: Path, chunk_size: int = 64 * 1024) -> tuple[bytes, int]:
+    """Read only the QVD XML header, stopping at its NUL terminator."""
+    chunks: list[bytes] = []
+    total = 0
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(chunk_size)
+            if not chunk:
+                raise ValueError("QVD header terminator (NUL byte) was not found")
+            terminator = chunk.find(b"\x00")
+            if terminator >= 0:
+                chunks.append(chunk[:terminator])
+                total += terminator + 1
+                return b"".join(chunks), total
+            chunks.append(chunk)
+            total += len(chunk)
+
+
 def read_qvd_metadata(path: Path) -> QvdMetadata:
     """Read the QVD XML header and return metadata; do not parse data rows."""
-    with path.open("rb") as handle:
-        data = handle.read()
-
-    terminator = data.find(b"\x00")
-    if terminator < 0:
-        raise ValueError("QVD header terminator (NUL byte) was not found")
-
-    header_bytes = data[:terminator]
+    header_bytes, header_size = _read_header(path)
     try:
         root = ET.fromstring(header_bytes)
     except ET.ParseError as exc:
@@ -100,7 +106,7 @@ def read_qvd_metadata(path: Path) -> QvdMetadata:
     return QvdMetadata(
         path=str(path),
         file_size_bytes=path.stat().st_size,
-        header_size_bytes=terminator + 1,
+        header_size_bytes=header_size,
         record_byte_size=_int(_text(root, "RecordByteSize")),
         no_of_records=_int(_text(root, "NoOfRecords")),
         create_utc_time=_text(root, "CreateUtcTime"),
@@ -111,7 +117,6 @@ def read_qvd_metadata(path: Path) -> QvdMetadata:
 
 
 def load_expected_fields(path: Path) -> dict[str, list[str]]:
-    """Load {filename: [field, ...]} expectations from a small JSON contract."""
     with path.open(encoding="utf-8") as handle:
         value = json.load(handle)
     if not isinstance(value, dict):
@@ -119,11 +124,7 @@ def load_expected_fields(path: Path) -> dict[str, list[str]]:
     return value
 
 
-def validate(
-    metadata: QvdMetadata,
-    min_records: int,
-    expected_fields: list[str] | None,
-) -> list[str]:
+def validate(metadata: QvdMetadata, min_records: int, expected_fields: list[str] | None) -> list[str]:
     errors: list[str] = []
     names = [field.name for field in metadata.fields]
 
@@ -132,19 +133,15 @@ def validate(
     if metadata.no_of_records is None:
         errors.append("NoOfRecords is missing or not numeric")
     elif metadata.no_of_records < min_records:
-        errors.append(
-            f"NoOfRecords={metadata.no_of_records} is below minimum {min_records}"
-        )
+        errors.append(f"NoOfRecords={metadata.no_of_records} is below minimum {min_records}")
     if not names:
         errors.append("QVD contains no field definitions")
     if len(names) != len(set(names)):
         errors.append("duplicate field names detected")
-
     if expected_fields:
         missing = [name for name in expected_fields if name not in names]
         if missing:
             errors.append(f"missing expected fields: {', '.join(missing)}")
-
     return errors
 
 
@@ -163,17 +160,12 @@ def main() -> int:
     parser.add_argument("--path", required=True, type=Path, help="QVD file or directory")
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     parser.add_argument("--min-records", type=int, default=1)
-    parser.add_argument(
-        "--expected-fields",
-        type=Path,
-        help="JSON contract mapping QVD filename to required field names",
-    )
+    parser.add_argument("--expected-fields", type=Path, help="JSON contract mapping QVD filename to required field names")
     args = parser.parse_args()
 
     if not args.path.exists():
         print(f"ERROR: path does not exist: {args.path}", file=sys.stderr)
         return 2
-
     qvds = iter_qvds(args.path)
     if not qvds:
         print(f"ERROR: no .qvd files found under {args.path}", file=sys.stderr)
@@ -218,9 +210,7 @@ def main() -> int:
             print(f"  Fields:  {len(result.get('fields', []))}")
             print(f"  Size:    {result.get('file_size_bytes')} bytes")
             print("  Field names: " + ", ".join(field["name"] for field in result["fields"]))
-
         print(f"\nChecked {len(results)} QVD file(s): {'FAIL' if failed else 'PASS'}")
-
     return 1 if failed else 0
 
 

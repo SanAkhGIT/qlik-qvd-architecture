@@ -1,0 +1,39 @@
+{
+  "Customers.qvd": [
+    "CustomerID",
+    "CustomerName",
+    "Region",
+    "Country",
+    "Segment"
+  ],
+  "Products.qvd": [
+    "ProductID",
+    "ProductName",
+    "Category",
+    "Subcategory",
+    "UnitPrice"
+  ],
+  "FactOrders.qvd": [
+    "OrderID",
+    "OrderDate",
+    "CustomerID",
+    "ProductID",
+    "Quantity",
+    "Discount",
+    "SalesAmount",
+    "NetUnitSales",
+    "OrderYear",
+    "OrderMonth",
+    "DataLoadTimestamp"
+  ],
+  "CanonicalCalendar.qvd": [
+    "OrderDate",
+    "CalendarYear",
+    "CalendarMonth",
+    "CalendarMonthYear",
+    "CalendarWeek",
+    "CalendarWeekDay",
+    "CalendarQuarter",
+    "IsWeekday"
+  ]
+}

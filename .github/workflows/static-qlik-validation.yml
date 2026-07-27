@@ -22,13 +22,24 @@ jobs:
       - name: Run Python unit tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
 
+      - name: Generate deterministic QVD metadata fixture
+        run: python python/generate_qvd_fixture.py --output artifacts/FactOrders.qvd --records 100
+
       - name: Run QVD metadata preflight
         run: |
-          mkdir -p artifacts
           python python/qvd_preflight.py \
-            --path qvd \
+            --path artifacts/FactOrders.qvd \
+            --contract config/qvd_metadata_contract.json \
+            --min-records 1
+
+      - name: Create QVD audit report
+        if: always()
+        run: |
+          python python/qvd_audit.py \
+            --path artifacts/FactOrders.qvd \
             --expected-fields config/qvd_metadata_contract.json \
-            --json-out artifacts/qvd_preflight.json
+            --json-out artifacts/qvd_audit.json \
+            --csv-out artifacts/qvd_audit.csv
 
       - name: Upload QVD audit artifacts
         if: always()
@@ -36,4 +47,4 @@ jobs:
         with:
           name: qvd-validation-${{ github.run_id }}
           path: artifacts/
-          if-no-files-found: ignore
+          if-no-files-found: error

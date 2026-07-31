@@ -1,6 +1,9 @@
 // INCREMENTAL ORDER LOAD
 // Demonstrates a safe QVD pattern for new/changed records.
 // A small look-back window protects against late-arriving source records.
+// Determinism: OrderID + ModifiedTimestamp + OrderVersion form the tie-breaker.
+// Limitation: source deletes are not represented by this extract and require
+// an explicit CDC/delete feed in a production implementation.
 
 SET ErrorMode=1;
 SET DateFormat='YYYY-MM-DD';
@@ -14,7 +17,7 @@ LET vLastModifiedNum = Num(Date#('1900-01-01', 'YYYY-MM-DD'));
 IF FileSize('$(vExistingQvd)') > 0 THEN
     ExistingOrders:
     LOAD OrderID, OrderDate, CustomerID, ProductID, Quantity, Discount,
-         SalesAmount, ModifiedTimestamp
+         SalesAmount, ModifiedTimestamp, OrderVersion
     FROM [$(vExistingQvd)] (qvd);
 
     LatestModified:
@@ -25,7 +28,7 @@ IF FileSize('$(vExistingQvd)') > 0 THEN
 ELSE
     ExistingOrders:
     LOAD * INLINE [
-        OrderID, OrderDate, CustomerID, ProductID, Quantity, Discount, SalesAmount, ModifiedTimestamp
+        OrderID, OrderDate, CustomerID, ProductID, Quantity, Discount, SalesAmount, ModifiedTimestamp, OrderVersion
     ];
 ENDIF
 
@@ -39,7 +42,8 @@ LOAD Trim(OrderID) as OrderID,
      Num(Quantity) as Quantity,
      Num(Discount) as Discount,
      Num(SalesAmount) as SalesAmount,
-     Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp
+     Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp,
+     1 as OrderVersion
 FROM [$(vSourcePath)orders.csv]
 (txt, codepage is 65001, embedded labels, delimiter is ',', msq)
 WHERE Num(Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD'))) >= $(vIncrementalCutoffNum)
@@ -53,13 +57,14 @@ LOAD * RESIDENT NewOrders;
 Orders_Deduplicated:
 NoConcatenate
 LOAD OrderID,
-     FirstSortedValue(OrderDate, -Num(ModifiedTimestamp)) as OrderDate,
-     FirstSortedValue(CustomerID, -Num(ModifiedTimestamp)) as CustomerID,
-     FirstSortedValue(ProductID, -Num(ModifiedTimestamp)) as ProductID,
-     FirstSortedValue(Quantity, -Num(ModifiedTimestamp)) as Quantity,
-     FirstSortedValue(Discount, -Num(ModifiedTimestamp)) as Discount,
-     FirstSortedValue(SalesAmount, -Num(ModifiedTimestamp)) as SalesAmount,
-     Max(ModifiedTimestamp) as ModifiedTimestamp
+     FirstSortedValue(OrderDate, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as OrderDate,
+     FirstSortedValue(CustomerID, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as CustomerID,
+     FirstSortedValue(ProductID, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as ProductID,
+     FirstSortedValue(Quantity, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as Quantity,
+     FirstSortedValue(Discount, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as Discount,
+     FirstSortedValue(SalesAmount, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as SalesAmount,
+     Max(ModifiedTimestamp) as ModifiedTimestamp,
+     FirstSortedValue(OrderVersion, -OrderVersion) as OrderVersion
 RESIDENT ExistingOrders
 GROUP BY OrderID;
 

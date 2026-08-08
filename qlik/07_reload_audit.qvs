@@ -1,0 +1,28 @@
+// RELOAD AUDIT / OPERATIONAL OBSERVABILITY
+// Writes one operational record for the current reload run.
+// This is intentionally lightweight: the audit QVD can be consumed by a
+// monitoring app without coupling the reload logic to presentation.
+
+SET ErrorMode=1;
+$(Must_Include=lib://QlikQVDArchitecture/config/environment.qvs);
+
+LET vReloadRunID = UUID();
+LET vReloadStartedUTC = Timestamp(Now(1), 'YYYY-MM-DD hh:mm:ss');
+LET vReloadStatus = 'STARTED';
+LET vReloadMessage = 'Master reload started';
+
+ReloadAudit:
+LOAD
+    '$(vReloadRunID)' as RunID,
+    '$(vReloadStartedUTC)' as StartedUTC,
+    Timestamp(Now(1), 'YYYY-MM-DD hh:mm:ss') as CompletedUTC,
+    'MASTER' as Process,
+    '$(vReloadStatus)' as Status,
+    '$(vReloadMessage)' as Message,
+    Null() as RowCount,
+    Null() as DQStatus;
+
+STORE ReloadAudit INTO [$(vAuditQvdPath)ReloadAudit.qvd] (qvd);
+DROP TABLE ReloadAudit;
+
+TRACE RELOAD AUDIT INITIALIZED: $(vReloadRunID);

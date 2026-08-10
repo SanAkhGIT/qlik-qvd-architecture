@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "required_metrics": [
+    "source_rows_read",
+    "reload_duration_seconds",
+    "qvd_size_bytes",
+    "ram_peak_mb",
+    "app_response_seconds"
+  ],
+  "notes": "Populate measurements from a real Qlik environment. Empty benchmark files are intentional and must not be interpreted as measured results."
+}

@@ -19,6 +19,36 @@ Performance is treated as a measurable engineering concern rather than a claim i
 - Avoid synthetic keys and circular references.
 - Prefer mapping tables for simple one-to-one enrichment.
 
+These design choices are reflected in the layered architecture, but **they are not performance measurements by themselves**.
+
+## Benchmark contract
+
+`benchmarks/performance_measurements.csv` is the measurement template. For each scenario, capture the same workload in a baseline and optimised implementation from the target Qlik environment.
+
+Required metrics:
+
+| Metric | What it measures |
+|---|---|
+| `source_rows_read` | Rows pulled from the source |
+| `reload_duration_seconds` | End-to-end or stage reload time |
+| `qvd_size_bytes` | Persisted QVD footprint |
+| `ram_peak_mb` | Peak memory observed during reload/app use |
+| `app_response_seconds` | Representative user-facing response time |
+
+Record the Qlik environment and measurement timestamp. Do not mix measurements from different environments in one comparison.
+
+## Validation
+
+Run:
+
+```bash
+python python/performance_benchmark.py \
+  --input benchmarks/performance_measurements.csv \
+  --json-out artifacts/performance_benchmark.json
+```
+
+The tool validates the measurement contract and calculates absolute and percentage deltas. It intentionally refuses to treat an empty template as a benchmark and never fabricates numbers.
+
 ## What to measure
 
 A credible performance review should record:
@@ -31,4 +61,4 @@ A credible performance review should record:
 | RAM peak | measured value | measured value |
 | App response time | measured value | measured value |
 
-Do not invent benchmark numbers. Measure them in the target Qlik environment and record the results here.
+**Current repository status:** the benchmark template exists, but no Qlik-runtime measurements are claimed. Populate it only after executing the workload in a real Qlik environment.

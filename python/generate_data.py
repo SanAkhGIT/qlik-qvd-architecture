@@ -45,7 +45,7 @@ for i in range(1, ORDER_COUNT + 1):
     modified_date = order_date + timedelta(days=random.choice([0, 0, 0, 1, 2, 3]))
     orders.append([
         f"O{i:06d}", order_date.isoformat(), customer[0], product[0],
-        quantity, discount, sales, modified_date.isoformat()
+        quantity, discount, sales, modified_date.isoformat(), 1
     ])
 
 
@@ -60,7 +60,7 @@ write_csv("customers.csv", ["CustomerID", "CustomerName", "Region", "Country", "
 write_csv("products.csv", ["ProductID", "ProductName", "Category", "Subcategory", "UnitPrice"], products)
 write_csv(
     "orders.csv",
-    ["OrderID", "OrderDate", "CustomerID", "ProductID", "Quantity", "Discount", "SalesAmount", "ModifiedDate"],
+    ["OrderID", "OrderDate", "CustomerID", "ProductID", "Quantity", "Discount", "SalesAmount", "ModifiedDate", "OrderVersion"],
     orders,
 )
 

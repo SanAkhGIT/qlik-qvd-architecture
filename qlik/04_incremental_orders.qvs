@@ -1,7 +1,8 @@
 // INCREMENTAL ORDER LOAD
 // Demonstrates a safe QVD pattern for new/changed records.
 // A small look-back window protects against late-arriving source records.
-// Determinism: OrderID + ModifiedTimestamp + OrderVersion form the tie-breaker.
+// Determinism: OrderID + ModifiedTimestamp + OrderVersion form the ordering key.
+// OrderVersion must come from the source/change feed; it is not generated in Qlik.
 // Limitation: source deletes are not represented by this extract and require
 // an explicit CDC/delete feed in a production implementation.
 
@@ -43,11 +44,13 @@ LOAD Trim(OrderID) as OrderID,
      Num(Discount) as Discount,
      Num(SalesAmount) as SalesAmount,
      Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD')) as ModifiedTimestamp,
-     1 as OrderVersion
+     Num(OrderVersion) as OrderVersion
 FROM [$(vSourcePath)orders.csv]
 (txt, codepage is 65001, embedded labels, delimiter is ',', msq)
 WHERE Num(Timestamp(Timestamp#(Trim(ModifiedDate), 'YYYY-MM-DD'))) >= $(vIncrementalCutoffNum)
   AND Len(Trim(OrderID)) > 0
+  AND Len(Trim(OrderVersion)) > 0
+  AND Num(OrderVersion) > 0
   AND Num(Quantity) > 0
   AND Num(SalesAmount) >= 0;
 
@@ -57,14 +60,14 @@ LOAD * RESIDENT NewOrders;
 Orders_Deduplicated:
 NoConcatenate
 LOAD OrderID,
-     FirstSortedValue(OrderDate, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as OrderDate,
-     FirstSortedValue(CustomerID, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as CustomerID,
-     FirstSortedValue(ProductID, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as ProductID,
-     FirstSortedValue(Quantity, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as Quantity,
-     FirstSortedValue(Discount, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as Discount,
-     FirstSortedValue(SalesAmount, -(Num(ModifiedTimestamp) * 1000000 + OrderVersion)) as SalesAmount,
+     FirstSortedValue(OrderDate, -(Num(ModifiedTimestamp) * 1000000 + Num(OrderVersion))) as OrderDate,
+     FirstSortedValue(CustomerID, -(Num(ModifiedTimestamp) * 1000000 + Num(OrderVersion))) as CustomerID,
+     FirstSortedValue(ProductID, -(Num(ModifiedTimestamp) * 1000000 + Num(OrderVersion))) as ProductID,
+     FirstSortedValue(Quantity, -(Num(ModifiedTimestamp) * 1000000 + Num(OrderVersion))) as Quantity,
+     FirstSortedValue(Discount, -(Num(ModifiedTimestamp) * 1000000 + Num(OrderVersion))) as Discount,
+     FirstSortedValue(SalesAmount, -(Num(ModifiedTimestamp) * 1000000 + Num(OrderVersion))) as SalesAmount,
      Max(ModifiedTimestamp) as ModifiedTimestamp,
-     FirstSortedValue(OrderVersion, -OrderVersion) as OrderVersion
+     Max(OrderVersion) as OrderVersion
 RESIDENT ExistingOrders
 GROUP BY OrderID;
 

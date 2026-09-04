@@ -1,0 +1,11 @@
+{
+  "description": "Portfolio-safe contract for Qlik Section Access design; contains no real identities.",
+  "required_fields": ["USERID", "ACCESS", "REGION"],
+  "roles": ["ADMIN", "USER"],
+  "reduction_fields": ["REGION"],
+  "rules": [
+    "USERID values are controlled by the enterprise identity/access process",
+    "reduction values must match the application model",
+    "production credentials and real authorization mappings must not be committed"
+  ]
+}
